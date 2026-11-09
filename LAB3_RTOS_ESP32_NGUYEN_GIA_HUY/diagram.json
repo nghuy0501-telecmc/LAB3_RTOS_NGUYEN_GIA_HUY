@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "author": "Ho ten - Lop",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-dht22", "id": "dht1", "top": -105.3, "left": 148.2, "attrs": { "temperature": "28", "humidity": "32" } },
+    { "type": "wokwi-led", "id": "ledPump", "top": 150, "left": 250, "attrs": { "color": "red", "label": "Bom" } },
+    { "type": "wokwi-led", "id": "ledFan", "top": 150, "left": 310, "attrs": { "color": "green", "label": "Quat" } },
+    { "type": "wokwi-led", "id": "ledMist", "top": 150, "left": 370, "attrs": { "color": "blue", "label": "Phun suong" } },
+    { "type": "wokwi-resistor", "id": "r1", "top": 110, "left": 245, "rotate": 90, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r2", "top": 110, "left": 305, "rotate": 90, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r3", "top": 110, "left": 365, "rotate": 90, "attrs": { "value": "220" } }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+
+    [ "dht1:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "dht1:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "dht1:SDA", "esp:22", "green", [ "v0" ] ],
+
+    [ "esp:17", "r1:1", "red", [ "h0" ] ],
+    [ "r1:2", "ledPump:A", "red", [ "h0" ] ],
+    [ "ledPump:C", "esp:GND.2", "black", [ "h0" ] ],
+
+    [ "esp:18", "r2:1", "green", [ "h0" ] ],
+    [ "r2:2", "ledFan:A", "green", [ "h0" ] ],
+    [ "ledFan:C", "esp:GND.2", "black", [ "h0" ] ],
+
+    [ "esp:19", "r3:1", "blue", [ "h0" ] ],
+    [ "r3:2", "ledMist:A", "blue", [ "h0" ] ],
+    [ "ledMist:C", "esp:GND.2", "black", [ "h0" ] ]
+  ],
+  "dependencies": {}
+}

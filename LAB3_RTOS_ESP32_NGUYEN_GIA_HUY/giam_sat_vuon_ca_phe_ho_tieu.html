@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giám Sát Vườn Cây Công Nghiệp - EMQX IoT</title>
+
+    <!-- MQTT và Chart.js -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+
+        :root {
+            --green: #16834a;
+            --green-dark: #075333;
+            --orange: #e67e22;
+            --blue: #258bd8;
+            --red: #df4141;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            padding: 28px 16px;
+            color: #18332a;
+
+            /* Ảnh nền vườn cà phê và hồ tiêu Việt Nam */
+            background:
+                linear-gradient(rgba(8, 35, 22, 0.42), rgba(8, 35, 22, 0.52)),
+                url("https://media.istockphoto.com/id/1087427114/vi/anh/h%E1%BA%A1t-c%C3%A0-ph%C3%AA-%C4%91%E1%BB%8F-tr%C3%AAn-c%C3%A0nh-c%C3%A2y.jpg?s=612x612&w=0&k=20&c=x5KkzI78hVQYzhJ6rw3WVGqhPc38pSKoJ0ra00lhV4s=")
+                center center / cover fixed no-repeat;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 26px;
+            border: 1px solid rgba(255,255,255,0.7);
+            border-radius: 18px;
+            background: rgba(255,255,255,0.93);
+            box-shadow: 0 16px 50px rgba(0,0,0,0.28);
+            backdrop-filter: blur(8px);
+        }
+
+        header {
+            color: white;
+            background: linear-gradient(135deg, #075333, #16834a);
+            border-radius: 12px;
+            padding: 22px 18px;
+            margin: -2px -2px 20px;
+            text-align: center;
+        }
+
+        h1 { margin: 0 0 8px; font-size: clamp(21px, 3vw, 29px); }
+        .subtitle { margin: 0; font-size: 14px; color: #e4f5e9; line-height: 1.5; }
+
+        .status {
+            display: inline-block;
+            margin: 0 auto 22px;
+            padding: 11px 16px;
+            border-radius: 999px;
+            background: #fff4df;
+            color: #a66300;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .status-wrap { text-align: center; }
+
+        .data-container {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .data-box {
+            background: rgba(255,255,255,0.92);
+            border: 1px solid #e1e8e3;
+            border-radius: 12px;
+            padding: 22px 18px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .data-label { font-size: 17px; font-weight: bold; color: #344b41; }
+        .data-value { display: inline-block; margin-top: 12px; font-size: 36px; font-weight: 800; }
+        .unit { font-size: 18px; font-weight: bold; }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin: 18px 0;
+        }
+
+        .control-section {
+            border: 1px solid #dce9df;
+            border-radius: 12px;
+            padding: 18px;
+            background: rgba(248, 252, 249, 0.96);
+            text-align: center;
+        }
+
+        .control-section h3 { margin: 0 0 16px; font-size: 17px; color: var(--green-dark); }
+
+        .btn {
+            padding: 11px 16px;
+            min-width: 112px;
+            font-size: 14px;
+            font-weight: bold;
+            border: none;
+            border-radius: 7px;
+            cursor: pointer;
+            margin: 4px;
+            color: white;
+            transition: transform .15s, filter .15s;
+        }
+
+        .btn:hover { filter: brightness(.94); transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
+        .btn-on { background: var(--green); }
+        .btn-off { background: var(--red); }
+
+        .chart-container {
+            margin-top: 20px;
+            padding: 18px;
+            background: rgba(255,255,255,0.97);
+            border: 1px solid #e1e8e3;
+            border-radius: 12px;
+        }
+
+        .chart-container h3 { margin: 0 0 16px; color: #234537; }
+        .chart-area { position: relative; height: 320px; }
+
+        footer { text-align: center; color: #557064; font-size: 12px; margin-top: 18px; }
+
+        @media (max-width: 650px) {
+            body { padding: 12px 8px; background-attachment: scroll; }
+            .container { padding: 14px; border-radius: 12px; }
+            .data-container, .control-grid { grid-template-columns: 1fr; }
+            .data-value { font-size: 31px; }
+            .chart-container { padding: 12px; }
+            .chart-area { height: 260px; }
+            .btn { min-width: 100px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>🌿 HỆ THỐNG GIÁM SÁT VƯỜN CÂY CÔNG NGHIỆP</h1>
+            <p class="subtitle">Cà phê • Hồ tiêu | IoT và EMQX MQTT | Giám sát môi trường và điều khiển từ xa</p>
+        </header>
+
+        <div class="status-wrap">
+            <div id="status" class="status">Đang kết nối đến EMQX Broker...</div>
+        </div>
+
+        <section class="data-container">
+            <div class="data-box">
+                <div class="data-label">🌡️ Nhiệt độ</div>
+                <span id="temp-val" class="data-value" style="color:#e67e22;">--</span>
+                <span class="unit">°C</span>
+            </div>
+            <div class="data-box">
+                <div class="data-label">💧 Độ ẩm không khí</div>
+                <span id="hum-val" class="data-value" style="color:#258bd8;">--</span>
+                <span class="unit">%</span>
+            </div>
+        </section>
+
+        <section class="control-grid">
+            <div class="control-section">
+                <h3>💧 Điều khiển máy bơm tưới nước</h3>
+                <button class="btn btn-on" onclick="sendControl('lab_nhungN01_231432253/device/pump', 'ON')">BẬT BƠM</button>
+                <button class="btn btn-off" onclick="sendControl('lab_nhungN01_231432253/device/pump', 'OFF')">TẮT BƠM</button>
+            </div>
+            <div class="control-section">
+                <h3>🌀 Điều khiển quạt hút ẩm</h3>
+                <button class="btn btn-on" onclick="sendControl('lab_nhungN01_231432253/device/fan', 'ON')">BẬT QUẠT</button>
+                <button class="btn btn-off" onclick="sendControl('lab_nhungN01_231432253/device/fan', 'OFF')">TẮT QUẠT</button>
+            </div>
+        </section>
+
+        <section class="chart-container">
+            <h3>📈 Biểu đồ theo dõi môi trường theo thời gian thực</h3>
+            <div class="chart-area">
+                <canvas id="environmentChart"></canvas>
+            </div>
+        </section>
+
+        <footer>Hệ thống IoT giám sát vườn cà phê và hồ tiêu Việt Nam</footer>
+    </main>
+
+    <script>
+        // Topic phải trùng khớp chính xác với topic ESP32 đang publish.
+        const topic_temp = "lab_nhungN01_231432253/DHT22/nhietdo";
+        const topic_hum  = "lab_nhungN01_231432253/DHT22/doam";
+
+        // EMQX public broker WebSocket (không mã hóa).
+        // Nếu website chạy HTTPS, trình duyệt có thể chặn ws://; khi đó cần dùng endpoint WSS của broker.
+        const brokerUrl = "ws://broker.emqx.io:8083/mqtt";
+        const options = {
+            clientId: "EMQX_Web_Client_" + Math.random().toString(16).slice(2, 10),
+            keepalive: 60,
+            reconnectPeriod: 3000,
+            connectTimeout: 10000
+        };
+
+        const statusEl = document.getElementById("status");
+        const client = mqtt.connect(brokerUrl, options);
+
+        const ctx = document.getElementById("environmentChart").getContext("2d");
+        const environmentChart = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: "Nhiệt độ (°C)",
+                        borderColor: "#e67e22",
+                        backgroundColor: "rgba(230,126,34,0.12)",
+                        data: [],
+                        tension: 0.3,
+                        pointRadius: 3,
+                        fill: true
+                    },
+                    {
+                        label: "Độ ẩm (%)",
+                        borderColor: "#258bd8",
+                        backgroundColor: "rgba(37,139,216,0.10)",
+                        data: [],
+                        tension: 0.3,
+                        pointRadius: 3,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: "index", intersect: false },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: 100,
+                        title: { display: true, text: "Giá trị đo" }
+                    },
+                    x: { title: { display: true, text: "Thời gian" } }
+                },
+                plugins: {
+                    legend: { position: "top" }
+                }
+            }
+        });
+
+        client.on("connect", () => {
+            statusEl.textContent = "Đã kết nối EMQX Broker";
+            statusEl.style.color = "#16834a";
+            statusEl.style.background = "#e6f7ed";
+
+            client.subscribe([topic_temp, topic_hum], (err) => {
+                if (err) {
+                    statusEl.textContent = "Kết nối được nhưng đăng ký topic thất bại";
+                    statusEl.style.color = "#b42318";
+                    console.error("Lỗi subscribe:", err);
+                } else {
+                    console.log("Đã đăng ký topic nhiệt độ và độ ẩm.");
+                }
+            });
+        });
+
+        client.on("reconnect", () => {
+            statusEl.textContent = "Đang thử kết nối lại EMQX...";
+            statusEl.style.color = "#a66300";
+            statusEl.style.background = "#fff4df";
+        });
+
+        client.on("offline", () => {
+            statusEl.textContent = "Broker đang ngoại tuyến";
+            statusEl.style.color = "#b42318";
+            statusEl.style.background = "#fdecec";
+        });
+
+        client.on("error", (err) => {
+            console.error("Lỗi MQTT:", err);
+            statusEl.textContent = "Lỗi MQTT — kiểm tra kết nối/topic";
+            statusEl.style.color = "#b42318";
+            statusEl.style.background = "#fdecec";
+        });
+
+        client.on("close", () => {
+            statusEl.textContent = "Mất kết nối với EMQX Broker";
+            statusEl.style.color = "#b42318";
+            statusEl.style.background = "#fdecec";
+        });
+
+        client.on("message", (topic, payload) => {
+            const raw = payload.toString().trim();
+            const value = Number.parseFloat(raw);
+
+            if (!Number.isFinite(value)) {
+                console.warn("Dữ liệu cảm biến không phải số:", topic, raw);
+                return;
+            }
+
+            const timeNow = new Date().toLocaleTimeString("vi-VN");
+
+            if (topic === topic_temp) {
+                document.getElementById("temp-val").textContent = value.toFixed(1);
+                updateChart(0, timeNow, value);
+            } else if (topic === topic_hum) {
+                document.getElementById("hum-val").textContent = value.toFixed(1);
+                updateChart(1, timeNow, value);
+            }
+        });
+
+        // Dùng cùng một nhãn thời gian cho hai cảm biến nếu dữ liệu đến gần nhau.
+        function updateChart(datasetIndex, timeLabel, value) {
+            const labels = environmentChart.data.labels;
+            const data = environmentChart.data.datasets[datasetIndex].data;
+
+            if (labels.length === 0 || labels[labels.length - 1] !== timeLabel) {
+                labels.push(timeLabel);
+                environmentChart.data.datasets.forEach((dataset) => dataset.data.push(null));
+            }
+
+            data[data.length - 1] = value;
+
+            // Giữ tối đa 20 mốc thời gian để biểu đồ không quá dài.
+            while (labels.length > 20) {
+                labels.shift();
+                environmentChart.data.datasets.forEach((dataset) => dataset.data.shift());
+            }
+
+            environmentChart.update("none");
+        }
+
+        function sendControl(topic, command) {
+            if (!client.connected) {
+                alert("Chưa kết nối được với EMQX Broker!");
+                return;
+            }
+
+            client.publish(topic, command, { qos: 0, retain: false }, (err) => {
+                if (err) {
+                    alert("Gửi lệnh thất bại. Hãy kiểm tra kết nối MQTT.");
+                    console.error("Lỗi publish:", err);
+                } else {
+                    console.log(`Đã gửi lệnh ${command} đến topic ${topic}`);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
